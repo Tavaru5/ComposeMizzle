@@ -1,6 +1,5 @@
 package com.tavarus.composemizzle.ocean
 
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,45 +19,24 @@ import kotlin.math.atan2
 import kotlin.math.pow
 
 
+/*
+ * TODO: The user can rotate past the max visible/physical, and when they try to
+    rotate back, they have to undo whatever they went past the max before they
+    see any changes
+ * TODO: Animate the wheel rotating back to the 0 resting point when the user lets go
+ */
+
 @Composable
 fun Wheel(modifier: Modifier = Modifier) {
+    // Some of this state should be moved out to a viewmodel, especially as we start to use the
+    // visible rotation as a control for the steering of the ship.
     var rotation by remember { mutableStateOf(0f) }
-    var rotationOffset by remember {
-        mutableStateOf(0f)
-    }
-    var initialRotation by remember {
-        mutableStateOf(0f)
-    }
-    var offsetX by remember {
-        mutableStateOf(0f)
-    }
-    var offsetY by remember {
-        mutableStateOf(0f)
-    }
+    var rotationOffset by remember { mutableStateOf(0f) }
+    var initialRotation by remember { mutableStateOf(0f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
     var centerY = 0f
     var centerX = 0f
-
-
-    var visibleRotation: Float = if (rotation > 0) {
-        if (rotation / WHEEL_DECEL_CUTOFF < 0.7) {
-            rotation - (rotation.pow(2) / (2 * WHEEL_DECEL_CUTOFF))
-        } else {
-            (0.7f * WHEEL_DECEL_CUTOFF) - ((0.7f * WHEEL_DECEL_CUTOFF).pow(2) / (2 * WHEEL_DECEL_CUTOFF)) + .3f * (rotation - (0.7f * WHEEL_DECEL_CUTOFF))
-        }
-    } else {
-        if (rotation / WHEEL_DECEL_CUTOFF > -0.7) {
-            Log.d("KOG", "rotation: $rotation")
-            rotation + (rotation.pow(2) / (2 * WHEEL_DECEL_CUTOFF))
-        } else {
-            0f - (0.7f * WHEEL_DECEL_CUTOFF) + ((0.7f * WHEEL_DECEL_CUTOFF).pow(2) / (2 * WHEEL_DECEL_CUTOFF)) + .3f * (rotation + (0.7f * WHEEL_DECEL_CUTOFF))
-        }
-    }
-    if (visibleRotation > MAX_VISIBLE_ROTATION) {
-        visibleRotation = MAX_VISIBLE_ROTATION
-    } else if (visibleRotation < -MAX_VISIBLE_ROTATION) {
-        visibleRotation = -MAX_VISIBLE_ROTATION
-    }
-    Log.d("KOG", "visible: $visibleRotation")
 
     Card(
         modifier = modifier
@@ -71,14 +49,20 @@ fun Wheel(modifier: Modifier = Modifier) {
                     onDragStart = { offset ->
                         offsetX = offset.x
                         offsetY = offset.y
-                        initialRotation = touchAngle(offsetX, centerX, offsetY, centerY)
+                        val currentRotationAngle = (rotation + 180).mod(360f) - 180
+                        initialRotation = touchAngle(offsetX, centerX, offsetY, centerY) - currentRotationAngle
                     }
                 ) { change, dragAmount ->
                     change.consumeAllChanges()
                     offsetX += dragAmount.x
                     offsetY += dragAmount.y
-                    val newAngle = touchAngle(offsetX, centerX, offsetY, centerY) - initialRotation
+                    var newAngle = touchAngle(offsetX, centerX, offsetY, centerY) - initialRotation
 
+                    if (newAngle / 180 >= 1) {
+                        newAngle -= 360
+                    } else if (newAngle / 180 <= -1) {
+                        newAngle += 360
+                    }
                     // Check for a sign change
                     if ((rotation - rotationOffset * 360) * newAngle < 0) {
                         // If there is a sign change, check the difference between before and after
@@ -87,7 +71,7 @@ fun Wheel(modifier: Modifier = Modifier) {
                         // so divide by 180 to get the rotation offset change
                         rotationOffset += (crossoverDiff / 180)
                     }
-                    rotation = newAngle + (rotationOffset * 360)
+                    rotation = (newAngle + (rotationOffset * 360))
                 }
             },
         shape = CircleShape,
@@ -99,7 +83,7 @@ fun Wheel(modifier: Modifier = Modifier) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .rotate(visibleRotation)
+                .rotate(calculateVisibleRotation(rotation))
         )
     }
 }
@@ -110,5 +94,29 @@ private fun touchAngle(touchX: Float, centerX: Float, touchY: Float, centerY: Fl
     return Math.toDegrees(0 - atan2(dY.toDouble(), dX.toDouble())).toFloat()
 }
 
-const val WHEEL_DECEL_CUTOFF = 1080f
+private fun calculateVisibleRotation(rotation: Float): Float {
+    val visibleRotation = if (rotation > 0) {
+        if (rotation / WHEEL_DECEL_CUTOFF < DECAY_TIME) {
+            rotation - (rotation.pow(2) / (2 * WHEEL_DECEL_CUTOFF))
+        } else {
+            rotation + ((DECAY_TIME).pow(2) * WHEEL_DECEL_CUTOFF / 2) - (DECAY_TIME * rotation)
+        }
+    } else {
+        if (rotation / WHEEL_DECEL_CUTOFF > DECAY_TIME) {
+            rotation + (rotation.pow(2) / (2 * WHEEL_DECEL_CUTOFF))
+        } else {
+            rotation - ((DECAY_TIME).pow(2) * WHEEL_DECEL_CUTOFF / 2) - (DECAY_TIME * rotation)
+        }
+    }
+
+    return visibleRotation.coerceIn(-MAX_VISIBLE_ROTATION, MAX_VISIBLE_ROTATION)
+}
+
+// MAX_VIS = MAX_PHYS + (DECAY^2 * CUTOFF)/2 - MAX_PHYS * DECAY
 const val MAX_VISIBLE_ROTATION = 720f
+const val MAX_PHYSICAL_ROTATION = 1440f
+// At what percentage of the way to a full stop do we want to stop decelerating
+const val DECAY_TIME = 0.7f
+
+// A constant value based off of the above equation
+val WHEEL_DECEL_CUTOFF = ((2 * MAX_VISIBLE_ROTATION) - (2 * MAX_PHYSICAL_ROTATION) + (2 * DECAY_TIME * MAX_PHYSICAL_ROTATION))/ DECAY_TIME.pow(2)
