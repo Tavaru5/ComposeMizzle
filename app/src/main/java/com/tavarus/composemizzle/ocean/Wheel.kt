@@ -23,9 +23,6 @@ import kotlin.math.sign
 
 
 /*
- * TODO: The user can rotate past the max visible/physical, and when they try to
-    rotate back, they have to undo whatever they went past the max before they
-    see any changes
  * TODO: Animate the wheel rotating back to the 0 resting point when the user lets go
  */
 
