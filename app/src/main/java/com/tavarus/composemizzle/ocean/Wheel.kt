@@ -1,6 +1,8 @@
 package com.tavarus.composemizzle.ocean
 
 import android.util.Log
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,15 +18,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import com.tavarus.composemizzle.R
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.pow
 import kotlin.math.sign
-
-
-/*
- * TODO: Animate the wheel rotating back to the 0 resting point when the user lets go
- */
 
 @Composable
 fun Wheel(modifier: Modifier = Modifier) {
@@ -32,7 +31,7 @@ fun Wheel(modifier: Modifier = Modifier) {
     // visible rotation as a control for the steering of the ship.
 
     // Actual rotation between -max & max
-    var rotation by remember { mutableStateOf(0f) }
+    var rotation by remember { mutableStateOf(Animatable(0f)) }
     // How many full rotations we've gone past
     var rotationOffset by remember { mutableStateOf(0f) }
     // Angle of the player's initial tap
@@ -51,71 +50,81 @@ fun Wheel(modifier: Modifier = Modifier) {
                 centerX = it.size.width / 2.0f
             }
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        offsetX = offset.x
-                        offsetY = offset.y
-                        val currentRotationAngle = (rotation + 180).mod(360f) - 180
-                        initialRotation =
-                            touchAngle(offsetX, centerX, offsetY, centerY) - currentRotationAngle
-                    }
-                ) { change, dragAmount ->
-                    change.consumeAllChanges()
-                    offsetX += dragAmount.x
-                    offsetY += dragAmount.y
-                    var newAngle = touchAngle(offsetX, centerX, offsetY, centerY) - initialRotation
-                    // Logic for if the user is at the max
-                    if (abs(rotation) == MAX_PHYSICAL_ROTATION) {
-                        // For the swap between -179 to 179
-                        if (abs(newAngle - rotationOverflow) > 180) {
-                            if (newAngle.sign == rotation.sign) {
-                                // If the user is going opposite how they were (ie they're starting to unwind)
-                                initialRotation =
-                                    (initialRotation + rotationOverflow + 180).mod(360f) - 180
-                                newAngle -= rotationOverflow
-                                rotationOverflow = 0f
+                coroutineScope {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            offsetX = offset.x
+                            offsetY = offset.y
+                            val currentRotationAngle = (rotation.value + 180).mod(360f) - 180
+                            initialRotation =
+                                touchAngle(offsetX, centerX, offsetY, centerY) - currentRotationAngle
+                        },
+                        onDragEnd = {
+                            launch {
+                                rotationOffset = 0f
+                                rotation.animateTo(0f, spring(0.25f))
+                            }
+                        }
+                    ) { change, dragAmount ->
+                        change.consumeAllChanges()
+                        offsetX += dragAmount.x
+                        offsetY += dragAmount.y
+                        var newAngle = touchAngle(offsetX, centerX, offsetY, centerY) - initialRotation
+                        // Logic for if the user is at the max
+                        if (abs(rotation.value) == MAX_PHYSICAL_ROTATION) {
+                            // For the swap between -179 to 179
+                            if (abs(newAngle - rotationOverflow) > 180) {
+                                if (newAngle.sign == rotation.value.sign) {
+                                    // If the user is going opposite how they were (ie they're starting to unwind)
+                                    initialRotation =
+                                        (initialRotation + rotationOverflow + 180).mod(360f) - 180
+                                    newAngle -= rotationOverflow
+                                    rotationOverflow = 0f
+                                } else {
+                                    // Otherwise we just make sure the angle is past the max rotation
+                                    // so that it will get coerced down
+                                    rotationOverflow = newAngle
+                                    newAngle += rotation.value
+                                }
                             } else {
-                                // Otherwise we just make sure the angle is past the max rotation
-                                // so that it will get coerced down
-                                rotationOverflow = newAngle
-                                newAngle += rotation
+                                // Same as above, just different logic for determining whether they're
+                                // starting to unwind
+                                if ((rotationOverflow - newAngle).sign == rotation.value.sign) {
+                                    initialRotation =
+                                        (initialRotation + rotationOverflow + 180).mod(360f) - 180
+                                    newAngle -= rotationOverflow
+                                    rotationOverflow = 0f
+                                } else {
+                                    rotationOverflow = newAngle
+                                    newAngle += rotation.value
+                                }
                             }
                         } else {
-                            // Same as above, just different logic for determining whether they're
-                            // starting to unwind
-                            if ((rotationOverflow - newAngle).sign == rotation.sign) {
-                                initialRotation =
-                                    (initialRotation + rotationOverflow + 180).mod(360f) - 180
-                                newAngle -= rotationOverflow
-                                rotationOverflow = 0f
-                            } else {
-                                rotationOverflow = newAngle
-                                newAngle += rotation
+                            if (newAngle / 180 >= 1) {
+                                newAngle -= 360
+                            } else if (newAngle / 180 <= -1) {
+                                newAngle += 360
+                            }
+                            // When we're capped at max, the rotation offset doesn't keep going up, so this flips at some points
+                            // Check for a sign change
+                            if ((rotation.value - rotationOffset * 360) * newAngle <= 0) {
+                                val crossoverDiff =
+                                    (rotation.value - (newAngle + rotationOffset * 360)).toInt()
+                                // We only care about the change between 180 & -180, which will always be > 180,
+                                // so divide by 180 to get the rotation offset change
+                                rotationOffset += (crossoverDiff / 180)
                             }
                         }
-                    } else {
-                        if (newAngle / 180 >= 1) {
-                            newAngle -= 360
-                        } else if (newAngle / 180 <= -1) {
-                            newAngle += 360
-                        }
-                        // When we're capped at max, the rotation offset doesn't keep going up, so this flips at some points
-                        // Check for a sign change
-                        if ((rotation - rotationOffset * 360) * newAngle <= 0) {
-                            val crossoverDiff =
-                                (rotation - (newAngle + rotationOffset * 360)).toInt()
-                            // We only care about the change between 180 & -180, which will always be > 180,
-                            // so divide by 180 to get the rotation offset change
-                            rotationOffset += (crossoverDiff / 180)
+
+                        launch {
+                            rotation.snapTo((newAngle + (rotationOffset * 360)).coerceIn(
+                                -MAX_PHYSICAL_ROTATION,
+                                MAX_PHYSICAL_ROTATION
+                            ))
                         }
                     }
-
-
-                    rotation = (newAngle + (rotationOffset * 360)).coerceIn(
-                        -MAX_PHYSICAL_ROTATION,
-                        MAX_PHYSICAL_ROTATION
-                    )
                 }
+
             },
         shape = CircleShape,
         backgroundColor = Color.Transparent
@@ -126,7 +135,7 @@ fun Wheel(modifier: Modifier = Modifier) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .rotate(calculateVisibleRotation(rotation))
+                .rotate(calculateVisibleRotation(rotation.value))
         )
     }
 }
