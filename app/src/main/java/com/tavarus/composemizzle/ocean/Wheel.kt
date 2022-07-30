@@ -1,6 +1,5 @@
 package com.tavarus.composemizzle.ocean
 
-import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
@@ -31,9 +30,9 @@ fun Wheel(modifier: Modifier = Modifier) {
     // visible rotation as a control for the steering of the ship.
 
     // Actual rotation between -max & max
-    var rotation by remember { mutableStateOf(Animatable(0f)) }
+    val rotation by remember { mutableStateOf(Animatable(0f)) }
     // How many full rotations we've gone past
-    var rotationOffset by remember { mutableStateOf(0f) }
+    var rotationOffset by remember { mutableStateOf(0) }
     // Angle of the player's initial tap
     var initialRotation by remember { mutableStateOf(0f) }
     // How far past the max the rotation is
@@ -55,18 +54,21 @@ fun Wheel(modifier: Modifier = Modifier) {
                         onDragStart = { offset ->
                             offsetX = offset.x
                             offsetY = offset.y
+                            launch { rotation.stop() }
                             val currentRotationAngle = (rotation.value + 180).mod(360f) - 180
                             initialRotation =
                                 touchAngle(offsetX, centerX, offsetY, centerY) - currentRotationAngle
                         },
                         onDragEnd = {
                             launch {
-                                rotationOffset = 0f
                                 rotation.animateTo(0f, spring(0.25f))
                             }
                         }
                     ) { change, dragAmount ->
                         change.consumeAllChanges()
+                        if (rotation.isRunning) {
+                            rotationOffset = (rotation.value/360).toInt()
+                        }
                         offsetX += dragAmount.x
                         offsetY += dragAmount.y
                         var newAngle = touchAngle(offsetX, centerX, offsetY, centerY) - initialRotation
@@ -151,7 +153,7 @@ private fun calculateVisibleRotation(rotation: Float): Float {
         if (rotation / WHEEL_DECEL_CUTOFF < DECAY_TIME) {
             rotation - (rotation.pow(2) / (2 * WHEEL_DECEL_CUTOFF))
         } else {
-            rotation + ((DECAY_TIME).pow(2) * WHEEL_DECEL_CUTOFF / 2) - (DECAY_TIME * rotation)
+            rotation + ((DECAY_TIME).pow(2) * WHEEL_DECEL_CUTOFF / 2) - (DECAY_TIME * rotation)  
         }
     } else {
         if (rotation / WHEEL_DECEL_CUTOFF > -DECAY_TIME) {
