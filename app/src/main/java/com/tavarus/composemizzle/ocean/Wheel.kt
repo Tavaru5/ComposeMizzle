@@ -10,6 +10,7 @@ import androidx.compose.material.Card
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.pointerInput
@@ -25,39 +26,28 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 @Composable
-fun Wheel(modifier: Modifier = Modifier) {
-    // Some of this state should be moved out to a viewmodel, especially as we start to use the
-    // visible rotation as a control for the steering of the ship.
-
-    // Actual rotation between -max & max
+fun Wheel(
+    modifier: Modifier = Modifier,
+    onCenterUpdated: (Float, Float) -> Unit,
+    onDragStart: (Offset, Float) -> Unit,
+    onDrag: (Offset, Float, Boolean) -> Float
+) {
+    // Rotation
     val rotation by remember { mutableStateOf(Animatable(0f)) }
-    // How many full rotations we've gone past
-    var rotationOffset by remember { mutableStateOf(0) }
-    // Angle of the player's initial tap
-    var initialRotation by remember { mutableStateOf(0f) }
-    // How far past the max the rotation is
-    var rotationOverflow by remember { mutableStateOf(0f) }
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-    var centerY = 0f
-    var centerX = 0f
 
     Card(
         modifier = modifier
             .onGloballyPositioned {
-                centerY = it.size.height / 2.0f
-                centerX = it.size.width / 2.0f
+                val centerY = it.size.height / 2.0f
+                val centerX = it.size.width / 2.0f
+                onCenterUpdated(centerX, centerY)
             }
             .pointerInput(Unit) {
                 coroutineScope {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            offsetX = offset.x
-                            offsetY = offset.y
                             launch { rotation.stop() }
-                            val currentRotationAngle = (rotation.value + 180).mod(360f) - 180
-                            initialRotation =
-                                touchAngle(offsetX, centerX, offsetY, centerY) - currentRotationAngle
+                            onDragStart(offset, rotation.value)
                         },
                         onDragEnd = {
                             launch {
@@ -66,63 +56,8 @@ fun Wheel(modifier: Modifier = Modifier) {
                         }
                     ) { change, dragAmount ->
                         change.consumeAllChanges()
-                        if (rotation.isRunning) {
-                            rotationOffset = (rotation.value/360).toInt()
-                        }
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                        var newAngle = touchAngle(offsetX, centerX, offsetY, centerY) - initialRotation
-                        // Logic for if the user is at the max
-                        if (abs(rotation.value) == MAX_PHYSICAL_ROTATION) {
-                            // For the swap between -179 to 179
-                            if (abs(newAngle - rotationOverflow) > 180) {
-                                if (newAngle.sign == rotation.value.sign) {
-                                    // If the user is going opposite how they were (ie they're starting to unwind)
-                                    initialRotation =
-                                        (initialRotation + rotationOverflow + 180).mod(360f) - 180
-                                    newAngle -= rotationOverflow
-                                    rotationOverflow = 0f
-                                } else {
-                                    // Otherwise we just make sure the angle is past the max rotation
-                                    // so that it will get coerced down
-                                    rotationOverflow = newAngle
-                                    newAngle += rotation.value
-                                }
-                            } else {
-                                // Same as above, just different logic for determining whether they're
-                                // starting to unwind
-                                if ((rotationOverflow - newAngle).sign == rotation.value.sign) {
-                                    initialRotation =
-                                        (initialRotation + rotationOverflow + 180).mod(360f) - 180
-                                    newAngle -= rotationOverflow
-                                    rotationOverflow = 0f
-                                } else {
-                                    rotationOverflow = newAngle
-                                    newAngle += rotation.value
-                                }
-                            }
-                        } else {
-                            if (newAngle / 180 >= 1) {
-                                newAngle -= 360
-                            } else if (newAngle / 180 <= -1) {
-                                newAngle += 360
-                            }
-                            // When we're capped at max, the rotation offset doesn't keep going up, so this flips at some points
-                            // Check for a sign change
-                            if ((rotation.value - rotationOffset * 360) * newAngle <= 0) {
-                                val crossoverDiff =
-                                    (rotation.value - (newAngle + rotationOffset * 360)).toInt()
-                                // We only care about the change between 180 & -180, which will always be > 180,
-                                // so divide by 180 to get the rotation offset change
-                                rotationOffset += (crossoverDiff / 180)
-                            }
-                        }
-
                         launch {
-                            rotation.snapTo((newAngle + (rotationOffset * 360)).coerceIn(
-                                -MAX_PHYSICAL_ROTATION,
-                                MAX_PHYSICAL_ROTATION
-                            ))
+                            rotation.snapTo(onDrag(dragAmount, rotation.value, rotation.isRunning))
                         }
                     }
                 }
@@ -142,12 +77,7 @@ fun Wheel(modifier: Modifier = Modifier) {
     }
 }
 
-private fun touchAngle(touchX: Float, centerX: Float, touchY: Float, centerY: Float): Float {
-    val dX = touchX - centerX
-    val dY = centerY - touchY
-    return Math.toDegrees(0 - atan2(dY.toDouble(), dX.toDouble())).toFloat()
-}
-
+// All of this is a view-specific and stateless, so it stays in here instead of the viewModel
 private fun calculateVisibleRotation(rotation: Float): Float {
     val visibleRotation = if (rotation > 0) {
         if (rotation / WHEEL_DECEL_CUTOFF < DECAY_TIME) {

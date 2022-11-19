@@ -12,21 +12,31 @@ import com.tavarus.composemizzle.ui.theme.Color
 fun Ocean(
 
 ) {
-    Box(modifier = Modifier
-        .background(Color.OceanBackground)
-        .fillMaxHeight()
-        .fillMaxWidth()
-        .padding(bottom = 16.dp)
+    val wheelViewModel = WheelViewModel()
+    Box(
+        modifier = Modifier
+            .background(Color.OceanBackground)
+            .fillMaxHeight()
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
     ) {
-        Row(modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .fillMaxWidth()) {
+        Boat(modifier = Modifier.align(Alignment.Center))
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .fillMaxWidth()
+        ) {
             Column(modifier = Modifier.weight(1f)) {
 
             }
-            Wheel(modifier = Modifier
-                .weight(2f)
-                .padding(32.dp))
+            Wheel(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(32.dp),
+                onCenterUpdated = { x, y -> wheelViewModel.updateCenter(x, y) },
+                onDragStart = { offset, rotation -> wheelViewModel.onDragStart(offset, rotation) },
+                onDrag = { offset, rotation, running -> wheelViewModel.onDrag(offset, rotation, running) }
+            )
         }
     }
 }
