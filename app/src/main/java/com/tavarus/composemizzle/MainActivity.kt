@@ -25,9 +25,7 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
 
             ComposeMizzleTheme {
-                Scaffold {
                     NavigationComponent(navController)
-                }
             }
         }
     }

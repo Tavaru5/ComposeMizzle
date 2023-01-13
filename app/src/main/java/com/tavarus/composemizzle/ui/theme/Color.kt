@@ -9,6 +9,8 @@ class Color {
         val Purple700 = Color(0xFF3700B3)
         val Teal200 = Color(0xFF03DAC5)
 
-        val OceanBackground = Color(0xff2cc3d4)
+        val OceanBackground = Color(0xFF476370)
+        val OceanLight = Color(0xFF64808D)
+        val OceanDark = Color(0xFF23383E)
     }
 }

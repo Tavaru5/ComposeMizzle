@@ -1,5 +1,6 @@
 package com.tavarus.composemizzle.ocean
 
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,15 +15,17 @@ import kotlin.math.sign
 
 class WheelViewModel() {
     // Angle of the player's initial tap
-    var initialRotation = 0f
+    private var initialRotation = 0f
     // How far past the max the rotation is
-    var rotationOverflow = 0f
+    private var rotationOverflow = 0f
     // How many full rotations we've gone past
-    var rotationOffset = 0
-    var offsetX = 0f
-    var offsetY = 0f
-    var centerY = 0f
-    var centerX = 0f
+    private var rotationOffset = 0
+    private var offsetX = 0f
+    private var offsetY = 0f
+    private var centerY = 0f
+    private var centerX = 0f
+
+    var actualRotation = 0f
 
     fun updateCenter(cenX: Float, cenY: Float) {
         centerX = cenX
@@ -91,11 +94,16 @@ class WheelViewModel() {
                 rotationOffset += (crossoverDiff / 180)
             }
         }
-        //TODO: Use this to also update the data model
-        return (newAngle + (rotationOffset * 360)).coerceIn(
+        actualRotation = (newAngle + (rotationOffset * 360)).coerceIn(
             -MAX_PHYSICAL_ROTATION,
             MAX_PHYSICAL_ROTATION
         )
+        return actualRotation
+    }
+
+    fun onDragAnimation(rotation: Float) {
+        rotationOffset = (rotation/360).toInt()
+        actualRotation = rotation
     }
 }
 
