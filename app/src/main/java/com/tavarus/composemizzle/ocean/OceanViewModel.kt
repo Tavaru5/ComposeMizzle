@@ -23,11 +23,6 @@ class OceanViewModel(
         oceanScope.launch {
             while (true) {
                 val newAngle = _uiState.value.boatAngle + wheelViewModel.actualRotation/1440f
-                //this boatangle is resetting or something
-//                if (wheelViewModel.actualRotation != 0f) {
-//                    Log.d("KOG", "wheel " + wheelViewModel.actualRotation/1440f)
-//                    Log.d("KOG", "newangle: $newAngle")
-//                }
                 _uiState.value =  ViewState(boatAngle = newAngle)
                 delay(20)
             }

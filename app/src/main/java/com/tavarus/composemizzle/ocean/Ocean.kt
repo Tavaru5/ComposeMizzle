@@ -19,31 +19,6 @@ fun Ocean(
 ) {
 
     val viewState by oceanViewModel.uiState.collectAsState()
-//    LaunchedEffect(key1 = Unit, block = {
-//        while (true) {
-//            Log.d("KOG", "wow")
-//            //here is where we want to do our update that recomposes the thingy
-//            //So we might actually want this a bit outside of this composable yeah?
-//            //Here we call a function that:
-//            // Updates the composable with the data that's currently in the datamodel.
-//            // So like, this should just be outside of the composable I guess?
-//            // That or it could be like right here encapsulating the `Box` call?
-//            // How would that work?
-//            // Cuz we need a subscription no?
-//            // Wait we just subscribe to the data right in here
-//            // Hmm no because datamodel should always be 100% correct.
-//            // We'd need like intermediary values in here that read from datamodel then only emit on this call
-//            // But how do we emit the values from just in a coroutine?
-//            // Like we can get the values at the right time here but how do we then send them to the ocean
-//            // Without calling a static function
-//            // And the function would ahve to be outside of the composable.
-//
-//
-//            // We hold the viewmodel
-//            // The viewmodel gives props to the lil rats
-//            // Then the method in here calls the viewmodel, updates it, then that updates the rats??
-//        }
-//    })
     Box(
         modifier = Modifier
             .background(Color.OceanBackground)
