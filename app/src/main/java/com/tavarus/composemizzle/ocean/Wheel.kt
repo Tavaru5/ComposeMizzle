@@ -30,7 +30,8 @@ fun Wheel(
     modifier: Modifier = Modifier,
     onCenterUpdated: (Float, Float) -> Unit,
     onDragStart: (Offset, Float) -> Unit,
-    onDrag: (Offset, Float, Boolean) -> Float
+    onDrag: (Offset, Float, Boolean) -> Float,
+    onDragAnimation: (Float) -> Unit,
 ) {
     // Rotation
     val rotation by remember { mutableStateOf(Animatable(0f)) }
@@ -51,7 +52,9 @@ fun Wheel(
                         },
                         onDragEnd = {
                             launch {
-                                rotation.animateTo(0f, spring(0.25f))
+                                rotation.animateTo(0f, spring(0.25f)) {
+                                    onDragAnimation(this.value)
+                                }
                             }
                         }
                     ) { change, dragAmount ->
